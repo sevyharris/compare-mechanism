@@ -1,4 +1,5 @@
 
+from rmgpy.molecule.element import P
 from rmgpy.molecule import adjlist
 import cantera as ct
 from logging import error
@@ -10,9 +11,9 @@ def ct2rmg_species(ct_spec, species_dictionary):
     rmg_spec = species_dictionary[ct_spec.name]
     # don't worry about thermo yet
     
-     def __init__(self, coeffs=None, Tmin=None, Tmax=None, E0=None, label='', comment=''):
-        HeatCapacityModel.__init__(self, Tmin=Tmin, Tmax=Tmax, E0=E0, label=label, comment=comment)
-        self.coeffs = coeffs
+    #  def __init__(self, coeffs=None, Tmin=None, Tmax=None, E0=None, label='', comment=''):
+    #     HeatCapacityModel.__init__(self, Tmin=Tmin, Tmax=Tmax, E0=E0, label=label, comment=comment)
+    #     self.coeffs = coeffs
 
 
     rmg_spec = Species().from_adjacency_list(adjlist)
@@ -58,10 +59,33 @@ def main():
     cti2 = sys.argv[3]
     dict2 = sys.argv[4]
 
-    model1 = import_model(cti1, dict1)
-    model2 = import_model(cti2, dict2)
+    gas1 = ct.Solution(cti1)
+    surf1 = ct.Interface(cti1, 'surface1', [gas1])
+    species_dictionary1 = load_species_dictionary(dict1)
+    gas2 = ct.Solution(cti2)
+    surf2 = ct.Interface(cti2, 'surface1', [gas2])
+    species_dictionary2 = load_species_dictionary(dict2)
 
-    common_sp, unique_sp1, unique_sp2 = compare_species(model1, model2)
+    unique_sp1 = gas1.species() + surf1.species()
+    unique_sp2 = []
+    common_spec = []
+
+    for spec2 in gas2.species() + surf2.species():
+        for spec1 in unique_sp1[:]:  # make a copy so you don't remove from the list you are iterating over
+            sp1 = species_dictionary1[spec1.name]
+            sp2 = species_dictionary2[spec2.name]
+            if sp1.is_isomorphic(sp2):
+                common_spec.append([spec1, spec2])
+                unique_sp1.remove(spec1)
+                break
+        else:
+            unique_sp2.append(spec2)
+
+    if len(unique_sp1) == 0 and len(unique_sp2) == 0:
+        print("mechanisms have the same species")
+    else:
+        print(f'\n\n1:\t{unique_sp1}')
+        print(f'\n\n2:\t{unique_sp2}')
 
 
 if __name__ == "__main__":
