@@ -5,6 +5,19 @@ import cantera as ct
 from logging import error
 from rmgpy.chemkin import load_species_dictionary
 from rmgpy.species import Species
+from rmgpy.reaction import Reaction
+
+
+def ct2rmg_reaction(ct_reaction, species_dictionary):
+
+    reactants = [species_dictionary[reaction] for reaction in ct_reaction.reactants.keys()]
+    products = [species_dictionary[product] for product in ct_reaction.products.keys()]
+    rxn = Reaction(reactants=reactants, products=products)
+    # __init__(
+    #              label='',
+    #              reactants=None,
+    #              products=None,
+    return rxn
 
 
 def ct2rmg_species(ct_spec, species_dictionary):
@@ -14,8 +27,6 @@ def ct2rmg_species(ct_spec, species_dictionary):
     #  def __init__(self, coeffs=None, Tmin=None, Tmax=None, E0=None, label='', comment=''):
     #     HeatCapacityModel.__init__(self, Tmin=Tmin, Tmax=Tmax, E0=E0, label=label, comment=comment)
     #     self.coeffs = coeffs
-
-
     rmg_spec = Species().from_adjacency_list(adjlist)
 
 
@@ -86,6 +97,42 @@ def main():
     else:
         print(f'\n\n1:\t{unique_sp1}')
         print(f'\n\n2:\t{unique_sp2}')
+
+    reaction_list1 = gas1.reactions()[:] + surf1.reactions()[:]
+    reaction_list2 = gas2.reactions()[:] + surf2.reactions()[:]
+
+    common_reactions = []
+    unique_reactions1 = []
+    unique_reactions2 = []
+    for rxn1 in reaction_list1:
+        for rxn2 in reaction_list2[:]:  # make a copy so you don't remove from the list you are iterating over
+            # reaction1 = rxn1
+            reaction2 = ct2rmg_reaction(rxn2, species_dictionary2)
+            reaction1 = ct2rmg_reaction(rxn1, species_dictionary1)
+
+            if reaction1.is_isomorphic(reaction2):
+                common_reactions.append([rxn1, rxn2])
+                # Remove reaction 2 from being chosen a second time.
+                # Let each reaction only appear only once in the diff comparison.
+                # Otherwise this miscounts number of reactions in model 2.
+                reaction_list2.remove(rxn2)
+                break
+    for rxn1 in reaction_list1:
+        for r1, r2 in common_reactions:
+            if rxn1 is r1:
+                break
+        else:
+            unique_reactions1.append(rxn1)
+    for rxn2 in reaction_list2:
+        for r1, r2 in common_reactions:
+            if rxn2 is r2:
+                break
+        else:
+            unique_reactions2.append(rxn2)
+
+    print(unique_reactions1)
+    print(unique_reactions2)
+
 
 
 if __name__ == "__main__":
